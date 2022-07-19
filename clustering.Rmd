@@ -1,0 +1,172 @@
+---
+title: "clustering"
+output:
+  word_document: default
+  html_document: default
+date: '2022-07-01'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+library(haven)
+library(dendextend)
+```
+
+
+```{r}
+sizofrenii<-read_sav("wuschiz_1.sav")
+```
+
+
+
+```{r}
+#Korelasyon Matrisi
+library("Hmisc")
+rcorr(as.matrix(sizofrenii[c(3,4,6,8,9,11,13,15)])) 
+#Korelasyon matrisinin anlamlılık değerlerinin yer aldığı tablo;
+```
+
+
+```{r}
+#Hiyerarşik Kümeleme
+d <- dist(sizofrenii[c(3,4,6,8,9,11,13,15)], method = "euclidean") 
+fit <- hclust(d, method="ward.D") # method= "single", "complete", "average", "ward.D", "centroid"
+dend<-as.dendrogram(fit) # Dendogram çizimi
+plot(dend)
+plot(color_branches(dend, k=3))
+```
+
+
+```{r}
+geneldend<-dend %>%
+  set("branches_lwd", 2) %>%
+  set("branches_k_color", k = 3)%>%
+  set("labels_cex", 1.2)%>%
+  set("labels_colors",k=3)
+plot(geneldend,font.axis = 2) 
+
+```
+```{r}
+library(pvclust)
+set.seed(13134)
+result <- pvclust(sizofrenii[1:402, c(3,4,6,8,9,11,13,15)], 
+                  method.dist="cor", method.hclust="average", nboot=8)
+plot(result)
+pvrect(result)
+#Bu dendogramdan anlıyoruz ki yalan ölçeği değişkeni diğer değişkenlerden daha uzak bir kümedir. Diğer değişken kümeleri birbirine yakındır.
+```
+```{r}
+dend %>% pvclust_show_signif(result) %>% 
+   plot(main = "Cluster dendrogram \n bp values are highlighted by signif")
+
+dend %>% pvclust_show_signif(result, show_type = "lwd") %>% 
+   plot(main = "Cluster dendrogram with AU/BP values (%)\n bp values are highlighted by signif")
+result %>% text
+result %>% pvrect(alpha=0.95)
+
+
+dend %>% pvclust_show_signif_gradient(result) %>% 
+   plot(main = "Cluster dendrogram with AU/BP values (%)\n bp values are colored by signif")
+
+dend %>%
+   pvclust_show_signif_gradient(result) %>%
+   pvclust_show_signif(result) %>%
+   plot(main = "Cluster dendrogram with AU/BP values (%)\n bp values are colored+highlighted by signif")
+result %>% text
+result %>% pvrect(alpha=0.95)
+```
+
+
+
+
+
+```{r}
+#Küme sayısının belirlenmesi
+library("factoextra")
+fviz_nbclust(sizofrenii[c(3,4,6,8,9,11,13,15)], kmeans, method = "wss")
+#Grafiğin kırılma noktası 3'tür. Yani 3 tane küme oluşturmak daha sağlıklı olur.
+
+```
+```{r}
+set.seed(95739487) 
+km.res <- kmeans(sizofrenii[c(3,4,6,8,9,11,13,15)],3, iter.max=20, algorithm="Lloyd") 
+t(km.res$centers)
+#Tabloda kümelerin değişken ortalamaları verilmiştir. Tabloya göre hangi kümedeki değişkenlerin ortalamaları en yüksek ya da en düşük gibi bir soruyu yanıtlayamayız. Çünkü kümelerdeki bazı değişkenler yüksekken bazı değişkenler düşüktür.
+```
+```{r}
+library(cluster)
+clusplot(sizofrenii[c(3,4,6,8,9,11,13,15)], km.res$cluster, main='2D representation of the Cluster solution',
+         color=TRUE, shade=TRUE,
+         labels=2, lines=0)
+
+```
+```{r}
+fviz_cluster(km.res, data = sizofrenii[c(3,4,6,8,9,11,13,15)], palette = "jco",
+             ggtheme = theme_minimal())
+
+```
+```{r}
+sizofrenii$cluster<-km.res$cluster # Veriye gözlemin atandigi kumenin eklenmesi
+sizofrenii$cluster<-as.factor(sizofrenii$cluster)
+```
+```{r}
+library(rstatix)
+#Anova tablosu
+yalan_olcegi_aov <- aov(yalan_olcegi ~ cluster, data = sizofrenii)
+summary(yalan_olcegi_aov)
+f_aov<- aov(f ~ cluster, data = sizofrenii)
+summary(f_aov)
+melankoli_aov<- aov(melankoli ~ cluster, data = sizofrenii)
+summary(melankoli_aov)
+histeri_aov <- aov(histeri ~ cluster, data = sizofrenii)
+summary(histeri_aov)
+psikopati_aov <- aov(psikopati ~ cluster, data = sizofrenii)
+summary(psikopati_aov)
+paranoya_aov <- aov(paranoya ~ cluster, data = sizofrenii)
+summary(paranoya_aov)
+Sc_aov <- aov(Sc ~ cluster, data = sizofrenii)
+summary(Sc_aov)
+ice_dönüklük_aov <- aov(ice_dönüklük ~ cluster, data = sizofrenii)
+summary(ice_dönüklük_aov)
+
+#H0: Kümelere göre değişken ortalamaları arasında anlamlı bir fark yoktur.
+#H1: Kümelere göre değişken ortalamaları arasında anlamlı bir fark vardır.
+#Her değişken için p değerleri < 0,05 o yüzden olarak H0 hipotezi reddedilir. 
+#Böylelikle;
+#Kümelere göre yalan ölçeği değişkeninin ortalamaları arasında anlamlı bir fark vardır.
+#Kümelere göre F değeri(faşistlik) değişkeninin ortalamaları arasında anlamlı bir fark vardır.
+#Kümelere göre melankoli değişkeninin ortalamaları arasında anlamlı bir fark vardır.
+#Kümelere göre histeri değişkeninin ortalamaları arasında anlamlı bir fark vardır.
+#Kümelere göre psikopati değişkeninin ortalamaları arasında anlamlı bir fark vardır.
+#Kümelere göre paranoya değişkeninin ortalamaları arasında anlamlı bir fark vardır.
+#Kümelere göre Sc(şizofreni) değişkeninin ortalamaları arasında anlamlı bir fark vardır.
+#Kümelere göre içe dönüklük değişkeninin ortalamaları arasında anlamlı bir fark vardır.
+
+
+
+
+```
+```{r}
+sizofreni_1<-sizofrenii %>% 
+  filter(cluster==1) #1. kümede 211 gözlem vardır.
+```
+
+```{r}
+sizofreni_2<- sizofrenii%>%
+  filter(cluster==2) #2. kümede 127 gözlem vardır.
+```
+
+```{r}
+sizofreni_3<- sizofrenii%>%
+  filter(cluster==3) #3. kümede 64 gözlem vardır.
+```
+
